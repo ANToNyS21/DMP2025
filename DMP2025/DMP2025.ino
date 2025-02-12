@@ -27,6 +27,12 @@
 #define PIN_relay2 15
 #define PIN_relay3 16
 #define PIN_relay4 17
+
+int modulepower1 = 0;
+int modulepower2 = 0;
+int serparrelaymode = 0; // 0 off    1 serial    2 paraler
+int output = 0; // 0 off     1 out on
+
 ////////////////////////////////////// H mustek fan control
 #define fan2en 11
 #define fan1en 13
@@ -69,14 +75,14 @@
 #define SHDN_PIN_8  38
 
 
-#define set1 230 //CC 1 
-#define set2 230 //CC 1 
-#define set3 15 //CV 1
-#define set4 15 //CV 1
-#define set5 230 //CC 2
-#define set6 230 //CC 2
-#define set7 15 //CV 2
-#define set8 15 //CV 2
+int set1 = 230; //CC 1 
+int set2 = 230; //CC 1 
+int set3 = 15; //CV 1
+int set4 = 15; //CV 1
+int set5 = 230; //CC 2
+int set6 = 230; //CC 2
+int set7 = 15; //CV 2
+int set8 = 15; //CV 2
 
 
 MCP41HVX1 Digipot1(CS_PIN_1, SHDN_PIN_1, WLAT_PIN_1);     // Create an instance of the MCP41HVX1 class for controlling the digipot
@@ -143,7 +149,26 @@ float f = ADS.toVoltage(1);  //  voltage factor
 
 
 int tik = LOW;
-static int refreshrate = rate_of_refreshing ;
+static int refreshrate = rate_of_refreshing;
+
+
+/////////////////////////////////////////// vypocty kroku
+
+float resistanceLookup_U[256];
+constexpr float MAX_VOLTAGE = 32.0;     // max U
+constexpr float RESISTOR_U_VALUE = 100000.0; // Hodnota odporu jednoho potenciometru
+constexpr float TARGET_U_RESISTANCE = 50000.0; // Paralelní kombinace dvou potenciometrů
+constexpr float TOLERANCE_U = 0.01;         // TOLERANCE_U pro shodu napětí
+float DESIRED_U = 1.00;
+
+float resistanceLookup_I[256];
+constexpr float MAX_CURRENT = 4.00;     // max I
+constexpr float RESISTOR_I_VALUE = 5000; // Hodnota odporu jednoho potenciometru
+constexpr float TARGET_I_RESISTANCE = 2500.0; // Paralelní kombinace dvou potenciometrů
+constexpr float TOLERANCE_I = 0.01;         // TOLERANCE_I pro shodu proudu
+float DESIRED_I = 1.00;
+
+
 
 
 
@@ -186,10 +211,13 @@ void setup() {
   pinMode(PIN_CLK2, INPUT_PULLUP);
   pinMode(PIN_BTN2, INPUT_PULLUP);
   lastStateDT2 = digitalRead(PIN_DT2);
-  /////////////////////////////////////////// ads
+  /////////////////////////////////////////// adc
   Wire.begin();
   ADS.begin();
   ADS.setGain(0);
+  /////////////////////////////////////////// vypocty
+  initializeResistanceLookup_U();
+  initializeResistanceLookup_I();
   
   /////////////////////////////////////////// lcd
   lcd.createChar(1, sipka);
@@ -365,6 +393,18 @@ void loop() {
     }
     stav_tlac_predchozi = stav_tlacitka;
 
+
+
+  int stav_tlacitka_2 = digitalRead(PIN_BTN2);
+    static int stav_tlac_predchozi_2 = HIGH;
+
+    
+    if (stav_tlacitka_2 == LOW && stav_tlac_predchozi_2 == HIGH && (millis() - lastDebounceTime3) > debounceDelay3) {
+      zadani_proudu();
+      lastDebounceTime3 = millis();
+    }
+    stav_tlac_predchozi_2 = stav_tlacitka_2;
+
   
 }
 
@@ -455,8 +495,8 @@ void zadani_napeti() {
         
       }
 
-        if (napeti > 60) {
-          napeti = 60;
+        if (napeti > 32) {
+          napeti = 32;
        }
          if (napeti < 0) {
           napeti = 0;
@@ -550,6 +590,13 @@ void zadani_napeti() {
     
 
     if (select >= 6) {
+      lcd.clear();
+      lcd.setCursor(5, 1);
+      lcd.print("Loading...");
+      lcd.setCursor(5, 2);
+      lcd.print("Please wait");
+      DESIRED_U = napeti;
+      vcalc();
       goto exit_point;  // Přejdeme na label exit_point a ukončíme funkci
     }
     
@@ -560,11 +607,390 @@ void zadani_napeti() {
 
 }
 
+void zadani_proudu() {
+    
+  lcd.clear();
+  int select = 1;
+  lastStateDT2 = digitalRead(PIN_DT2);
+  lastDebounceTime3 = millis();
+  while (true) {
+    tikani(refreshrate);
+  
+
+
+      currentStateDT2 = digitalRead(PIN_DT2);
+  if (currentStateDT2 != lastStateDT2 && (millis() - lastDebounceTime2) > debounceDelay2) {
+    lastDebounceTime2 = millis();  // reset  časovače
+    stepCounter2++;  
+
+    // pouziti kazdeho druheho kroku
+    if (stepCounter2 % 2 == 0) {
+      if (digitalRead(PIN_CLK2) != currentStateDT2) {// určení směru
+        
+         switch(select){ // proti směru hodinových ručiček
+          case 1:
+             proud = proud - 10;
+             break;
+
+          case 2:
+             proud = proud - 1;
+              break;
+
+          case 3:
+             proud = proud - 0.1;
+              break;
+
+          case 4:
+             proud = proud - 0.01;
+              break;
+
+          case 5:
+             proud = proud - 0.001;
+              break;
+
+      }
+        if (DEBUG) {
+          Serial.print(proud,3);
+          Serial.println("--");
+        }
+        
+        
+
+      } else {
+
+        switch(select){ // proti směru hodinových ručiček
+          case 1:
+             proud = proud + 10;
+             break;
+
+          case 2:
+             proud = proud + 1;
+              break;
+
+          case 3:
+             proud = proud + 0.1;
+              break;
+
+          case 4:
+             proud = proud + 0.01;
+              break;
+
+          case 5:
+             proud = proud + 0.001;
+              break;
+
+      }
+        if (DEBUG) {
+          Serial.print(proud,3);
+          Serial.println("++");
+        }
+        
+      }
+
+        if (proud > 8) {
+          proud = 8;
+       }
+         if (proud < 0) {
+          proud = 0;
+        }
+
+      lcd.setCursor(0, 0);
+      lcd.print("PROUD : ");
+      if (proud > 9.999) {
+      lcd.setCursor(9, 0);
+      }else {
+      lcd.setCursor(10, 0);
+      }
+      lcd.print(proud); 
+      
+    
+
+    }
+  }
+
+  lastStateDT2 = currentStateDT2; // ulozeni do pameti
+
+    if (tik) {
+      
+      char formated_proud[10];  // prevod float na string pro display interkace
+      dtostrf(proud, 6, 3, formated_proud);  // 6 zanku s 3 desetinymi misty
+      if (formated_proud[0] == ' ') { // detekce mezery na prvnim miste stringu
+        formated_proud[0] = '0';// osetreni aby se cislo 2 netislo 2.000 pak by nesedel ukazatel zvoleneho mista na upravu
+      } 
+
+      lcd.setCursor(0, 0);
+      lcd.print("PROUD : ");
+      lcd.setCursor(9, 0);
+      lcd.print(formated_proud); 
+      
+      lcd.setCursor(15, 0);
+      lcd.print("A");
+
+    
+      lcd.setCursor(0, 1);
+    
+      switch(select){
+      case 1:
+        lcd.print("_________");
+        lcd.setCursor(9, 1);
+        break;
+
+      case 2:
+        lcd.print("__________");
+        lcd.setCursor(10, 1);
+        break;
+
+      case 3:
+        lcd.print("____________");
+        lcd.setCursor(12, 1);
+        break;
+
+      case 4:
+        lcd.print("_____________");
+        lcd.setCursor(13, 1);
+        break;
+
+      case 5:
+        lcd.print("______________");
+        lcd.setCursor(14, 1);
+        break;
+
+      }
+      lcd.write(1);
+      lcd.print("                   ");
+    
+
+
+  }
+    
+    
+    
+
+    
+    int stlav_tlacitka = digitalRead(PIN_BTN2);
+    int stav_tlac_predchozi;
+
+    if (stlav_tlacitka == LOW && stav_tlac_predchozi == HIGH && (millis() - lastDebounceTime3) > debounceDelay3){
+      select = select + 1;
+      lastDebounceTime3 = millis();
+    }
+    stav_tlac_predchozi = stlav_tlacitka;
+
+
+
+
+    
+
+    if (select >= 6) {
+      lcd.clear();
+      lcd.setCursor(5, 1);
+      lcd.print("Loading...");
+      lcd.setCursor(5, 2);
+      lcd.print("Please wait");
+      DESIRED_I = proud;
+      icalc();
+      goto exit_point2;  // Přejdeme na label exit_point a ukončíme funkci
+    }
+    
+    
+  }
+  exit_point2:
+  lcd.clear();
+
+}
 
 
 
 
 
+
+int vcalc(){
+  if (DEBUG) {
+          Serial.println("Starting voltage optimization...");
+        }
+  
+
+
+  float desiredVoltage = DESIRED_U; // Cílové napětí (možno změnit dle potřeby)
+
+    int closestX = 0, closestY = 0;
+    float closestVoltage = 0.0;
+    float minDifference = MAX_VOLTAGE; // Inicializace s maximálním rozdílem
+
+    unsigned long startTime = millis();
+
+    // Optimalizované vyhledávání
+    for (int X = 0; X < 256; ++X) {
+        float R1 = resistanceLookup_U[X];
+        for (int Y = 0; Y <= X; ++Y) { // Smyčka běží jen pro Y <= X díky symetrii
+            float R2 = resistanceLookup_U[Y];
+            float voltage = calculateVoltage(R1, R2);
+            float difference = abs(voltage - desiredVoltage);
+
+            // Pokud je rozdíl menší než TOLERANCE_U, nalezli jsme shodu
+            if (difference < TOLERANCE_U) {
+              set3 = X;
+              set4 = Y;
+              if (DEBUG) {
+                  Serial.print("Exact match found: X = ");
+                  Serial.print(X);
+                  Serial.print(", Y = ");
+                  Serial.print(Y);
+                  Serial.print(", Voltage = ");
+                  Serial.println(voltage);
+                  Serial.print("Time elapsed: ");
+                  Serial.print(millis() - startTime);
+                  Serial.println(" ms");
+                  Serial.print(set3);
+                  Serial.print(set4);
+                  }
+                
+                
+                
+                return; // Ukončíme smyčku loop
+            }
+
+            // Aktualizace nejbližší hodnoty
+            if (difference < minDifference) {
+                minDifference = difference;
+                closestVoltage = voltage;
+                closestX = X;
+                closestY = Y;
+            }
+        }
+    }
+
+    // Pokud nebyla nalezena přesná shoda
+    set3 = closestX;
+    set4 = closestY;
+    if (DEBUG) {
+          Serial.println("No exact match found.");
+          Serial.print("Closest match: X = ");
+          Serial.print(closestX);
+          Serial.print(", Y = ");
+          Serial.print(closestY);
+          Serial.print(", Voltage = ");
+          Serial.println(closestVoltage);
+          Serial.print("Time elapsed: ");
+          Serial.print(millis() - startTime);
+          Serial.println(" ms");
+          Serial.print(set3);
+          Serial.print(set4);
+        }
+    
+
+    
+
+
+
+}
+
+int icalc(){
+  if (DEBUG) {
+          Serial.println("Starting voltage optimization...");
+        }
+
+
+  float desiredCurrent = DESIRED_I; // Cílové napětí (možno změnit dle potřeby)
+
+    int closestX = 0, closestY = 0;
+    float closestCurrent = 0.0;
+    float minDifference = MAX_CURRENT; // Inicializace s maximálním rozdílem
+
+    unsigned long startTime = millis();
+
+    // Optimalizované vyhledávání
+    for (int X = 0; X < 256; ++X) {
+        float R1 = resistanceLookup_I[X];
+        for (int Y = 0; Y <= X; ++Y) { // Smyčka běží jen pro Y <= X díky symetrii
+            float R2 = resistanceLookup_I[Y];
+            float current = calculateCurrent(R1, R2);
+            float difference = abs(current - desiredCurrent);
+
+            // Pokud je rozdíl menší než TOLERANCE_I, nalezli jsme shodu
+            if (difference < TOLERANCE_I) {
+                set1 = X;
+                set2 = Y;
+                if (DEBUG) {
+                    Serial.print("Exact match found: X = ");
+                    Serial.print(X);
+                    Serial.print(", Y = ");
+                    Serial.print(Y);
+                    Serial.print(", Current = ");
+                    Serial.println(current);
+                    Serial.print("Time elapsed: ");
+                    Serial.print(millis() - startTime);
+                    Serial.println(" ms");
+                    Serial.print(set1);
+                    Serial.print(set2);
+                  }
+                
+                return; // Ukončíme smyčku loop
+            }
+
+            // Aktualizace nejbližší hodnoty
+            if (difference < minDifference) {
+                minDifference = difference;
+                closestCurrent = current;
+                closestX = X;
+                closestY = Y;
+            }
+        }
+    }
+
+    // Pokud nebyla nalezena přesná shoda
+    set1 = closestX;
+    set2 = closestY;
+    if (DEBUG) {
+          Serial.println("No exact match found.");
+          Serial.print("Closest match: X = ");
+          Serial.print(closestX);
+          Serial.print(", Y = ");
+          Serial.print(closestY);
+          Serial.print(", current = ");
+          Serial.println(closestCurrent);
+          Serial.print("Time elapsed: ");
+          Serial.print(millis() - startTime);
+          Serial.println(" ms");
+          Serial.print(set1);
+          Serial.print(set2);
+        }
+    
+
+
+
+}
+
+
+
+
+
+
+
+
+void initializeResistanceLookup_U() {
+    for (int i = 0; i < 256; ++i) {
+        resistanceLookup_U[i] = (RESISTOR_U_VALUE / 256) * i;
+    }
+}
+
+inline float calculateVoltage(float R1, float R2) {
+    float R_parallel = (R1 * R2) / (R1 + R2);
+    return (R_parallel / TARGET_U_RESISTANCE) * MAX_VOLTAGE;
+}
+
+
+
+void initializeResistanceLookup_I() {
+    for (int i = 0; i < 256; ++i) {
+        resistanceLookup_I[i] = (RESISTOR_I_VALUE / 256) * i;
+    }
+}
+
+inline float calculateCurrent(float R1, float R2) {
+    float R_parallel = (R1 * R2) / (R1 + R2);
+    return (R_parallel / TARGET_I_RESISTANCE) * MAX_CURRENT;
+}
 
 
 
