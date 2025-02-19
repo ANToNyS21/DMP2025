@@ -124,7 +124,7 @@ int stepCounter2 = 0;
 
 
 #define CCCVmodedifftreshold 0.2
-static float proud = 8;
+static float proud = 2;
 static float napeti = 1;
 //static int napeti2 = 1;
 
@@ -597,6 +597,7 @@ void zadani_napeti() {
       lcd.print("Please wait");
       DESIRED_U = napeti;
       vcalc();
+      DCPsetup();
       goto exit_point;  // Přejdeme na label exit_point a ukončíme funkci
     }
     
@@ -787,8 +788,9 @@ void zadani_proudu() {
       lcd.print("Loading...");
       lcd.setCursor(5, 2);
       lcd.print("Please wait");
-      DESIRED_I = proud;
+      DESIRED_I = proud / 2;
       icalc();
+      DCPsetup();
       goto exit_point2;  // Přejdeme na label exit_point a ukončíme funkci
     }
     
@@ -887,7 +889,7 @@ int vcalc(){
 
 int icalc(){
   if (DEBUG) {
-          Serial.println("Starting voltage optimization...");
+          Serial.println("Starting current optimization...");
         }
 
 
@@ -993,13 +995,236 @@ inline float calculateCurrent(float R1, float R2) {
 }
 
 
+int DCPsetup(){
+    setvaliditycheck();
+    set5 = set1; // settovani slave DCP podle mastru
+    set6 = set2;
+    set7 = set3;
+    set8 = set4;
+    if (DEBUG) {
+
+      Serial.println();
+      Serial.print("set1 =");
+      Serial.print(set1);
+      Serial.println();
+
+      Serial.print("set2 =");
+      Serial.print(set2);
+      Serial.println();
+      
+      Serial.print("set3 =");
+      Serial.print(set3);
+      Serial.println();
+
+      Serial.print("set4 =");
+      Serial.print(set4);
+      Serial.println();
+
+      Serial.print("set5 =");
+      Serial.print(set5);
+      Serial.println();
+
+      Serial.print("set6 =");
+      Serial.print(set6);
+      Serial.println();
+
+      Serial.print("set7 =");
+      Serial.print(set7);
+      Serial.println();
+
+      Serial.print("set8 =");
+      Serial.print(set8);
+      Serial.println();
+    }
+    DCPwiperset();
+    DCPfeedback();
+
+}
+
+
+int setvaliditycheck(){
+
+    if (set1 < 1) {
+      set1 = 1;
+    }
+
+    if (set1 > 255) {
+    set1 = 255;
+    }
 
 
 
+    if (set2 < 1) {
+      set2 = 1;
+    }
+
+    if (set2 > 255) {
+    set2 = 255;
+    }
 
 
 
+    if (set3 < 1) {
+      set3 = 1;
+    }
 
+    if (set3 > 255) {
+    set3 = 255;
+    }
+
+
+
+    if (set4 < 1) {
+      set4 = 1;
+    }
+
+    if (set4 > 255) {
+    set4 = 255;
+    }
+
+
+
+    if (set5 < 1) {
+      set5 = 1;
+    }
+
+    if (set5 > 255) {
+    set5 = 255;
+    }
+
+
+
+    if (set6 < 1) {
+      set6 = 1;
+    }
+
+    if (set6 > 255) {
+    set6 = 255;
+    }
+
+
+
+    if (set7 < 1) {
+      set7 = 1;
+    }
+
+    if (set7 > 255) {
+    set7 = 255;
+    }
+
+
+
+    if (set8 < 1) {
+      set8 = 1;
+    }
+
+    if (set8 > 255) {
+    set8 = 255;
+    }
+
+
+}
+
+int DCPwiperset(){
+    Digipot1.WiperSetPosition(set1);
+    Digipot2.WiperSetPosition(set2);
+    Digipot3.WiperSetPosition(set3);
+    Digipot4.WiperSetPosition(set4);
+    Digipot5.WiperSetPosition(set5);
+    Digipot6.WiperSetPosition(set6);
+    Digipot7.WiperSetPosition(set7);
+    Digipot8.WiperSetPosition(set8);
+
+    
+}
+
+void DCPfeedback(){
+    if(Digipot1.WiperGetPosition() != set1) {
+        DCPerror();
+    }
+
+    if(Digipot2.WiperGetPosition() != set2) {
+        DCPerror();
+    }
+
+    if(Digipot3.WiperGetPosition() != set3) {
+        DCPerror();
+    }
+
+    if(Digipot4.WiperGetPosition() != set4) {
+        DCPerror();
+    }
+
+    if(Digipot5.WiperGetPosition() != set5) {
+        DCPerror();
+    }
+
+    if(Digipot6.WiperGetPosition() != set6) {
+        DCPerror();
+    }
+
+    if(Digipot7.WiperGetPosition() != set7) {
+        DCPerror();
+    }
+
+    if(Digipot8.WiperGetPosition() != set8) {
+        DCPerror();
+    }
+
+    if(DEBUG) {
+        Serial.println();
+        Serial.print("DCP1 walue =");
+        Serial.print(Digipot1.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP2 walue =");
+        Serial.print(Digipot2.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP3 walue =");
+        Serial.print(Digipot3.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP4 walue =");
+        Serial.print(Digipot4.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP5 walue =");
+        Serial.print(Digipot5.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP6 walue =");
+        Serial.print(Digipot6.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP7 walue =");
+        Serial.print(Digipot7.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP8 walue =");
+        Serial.print(Digipot8.WiperGetPosition());
+        
+    }
+    
+
+}
+
+void DCPerror(){
+    
+    lcd.clear();
+    lcd.setCursor(0, 1);
+    lcd.print("ERR: DCP NOT FOUND");
+    while(1) {
+    delay(1000);
+    }
+}
 
 
 
