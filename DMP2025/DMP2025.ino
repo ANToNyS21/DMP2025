@@ -2,10 +2,11 @@
 #include "SPI.h"
 #include <EEPROM.h>
 #include <Wire.h> // drát
-#include <LiquidCrystal_I2C.h>
-#include <ADS1X15.h> // ad converter
+#include <LiquidCrystal_I2C.h> 
+#include <ADS1X15.h> // AD converter 
 #define ON 1
 #define OFF 0
+int prvnispusteni = 1;
 
 
 #define programversion 1.00
@@ -19,8 +20,8 @@
 
 //PIN_relay2 + PIN_relay3 = paraler
 //PIN_relay1 = ser  
-#define PIN_relay5 3
-#define PIN_relay6 2
+#define PIN_relay5 3 //napajni modulu 2
+#define PIN_relay6 2 //napajni modulu 1
 
 
 #define PIN_relay1 14
@@ -34,8 +35,8 @@ int serparrelaymode = 0; // 0 off    1 serial    2 paraler
 int output = 0; // 0 off     1 out on
 
 ////////////////////////////////////// H mustek fan control
-#define fan2en 11
-#define fan1en 13
+#define fan2en 11 // inside
+#define fan1en 13 // exhaust
 #define fanEn 12
 ////////////////////////////////////// piny digitálních potenciometrů
 #define FORWARD true
@@ -75,14 +76,14 @@ int output = 0; // 0 off     1 out on
 #define SHDN_PIN_8  38
 
 
-int set1 = 230; //CC 1 
-int set2 = 230; //CC 1 
-int set3 = 15; //CV 1
-int set4 = 15; //CV 1
-int set5 = 230; //CC 2
-int set6 = 230; //CC 2
-int set7 = 15; //CV 2
-int set8 = 15; //CV 2
+int set1 = 150; //CC 1 
+int set2 = 150; //CC 1 
+int set3 = 200; //CV 1
+int set4 = 200; //CV 1
+int set5 = 150; //CC 2
+int set6 = 150; //CC 2
+int set7 = 200; //CV 2
+int set8 = 200; //CV 2
 
 
 MCP41HVX1 Digipot1(CS_PIN_1, SHDN_PIN_1, WLAT_PIN_1);     // Create an instance of the MCP41HVX1 class for controlling the digipot
@@ -124,7 +125,7 @@ int stepCounter2 = 0;
 
 
 #define CCCVmodedifftreshold 0.2
-static float proud = 2;
+static float proud = 0.5;
 static float napeti = 1;
 //static int napeti2 = 1;
 
@@ -140,7 +141,6 @@ byte sipka[8] = { // vytvoreni znaku pro vlastniho display
   B11100, 
   B00000  
 }; 
-
 
 
 
@@ -175,7 +175,7 @@ float DESIRED_I = 1.00;
 void setup() {
   delay(10);
   /////////////////////////////////////////// relays
-  //module1    
+  // relay module1    
   pinMode(PIN_relay1, OUTPUT);
   digitalWrite(PIN_relay1, HIGH);
   pinMode(PIN_relay2, OUTPUT);
@@ -184,22 +184,35 @@ void setup() {
   digitalWrite(PIN_relay3, HIGH);
   pinMode(PIN_relay4, OUTPUT);
   digitalWrite(PIN_relay4, HIGH);
-  //module2  
+  // relay module2  
   pinMode(PIN_relay5, OUTPUT);
   digitalWrite(PIN_relay5, HIGH);
   pinMode(PIN_relay6, OUTPUT);
   digitalWrite(PIN_relay6, HIGH);
 
-  //proud = EEPROM.read(1)-1;
-  /////////////////////////////////////////// fan control
+  /////////////////////////////////////////// EEPROM read
+  //EEPROM.put(1, proud);
+  //EEPROM.put(6, napeti);
+
+  EEPROM.get(1, proud);
+  EEPROM.get(6, napeti);
+
+  //EEPROM.put(1, proud);
+
+  /////////////////////////////////////////// fan control setup
+
   pinMode(fan2en, OUTPUT);
   analogWrite(fan2en, 255);
+
+  
+
+  pinMode(fan1en, OUTPUT);
+  analogWrite(fan1en, 255);
+
 
   pinMode(fanEn, OUTPUT);
   digitalWrite(fanEn, HIGH);
 
-  pinMode(fan1en, OUTPUT);
-  analogWrite(fan1en, 255);
   /////////////////////////////////////////// enkoder 1
   pinMode(PIN_DT, INPUT_PULLUP);
   pinMode(PIN_CLK, INPUT_PULLUP);
@@ -220,7 +233,12 @@ void setup() {
   initializeResistanceLookup_I();
   
   /////////////////////////////////////////// lcd
-  lcd.createChar(1, sipka);
+
+  
+  lcd.createChar(2, sipka);
+  
+
+  delay(10);
   lcd.init();
   lcd.backlight();
   lcd.clear();
@@ -234,6 +252,9 @@ void setup() {
   lcd.print(programversion);
   // zahájení komunikace po sériové lince
   Serial.begin(9600);
+  if (DEBUG) {
+    Serial.println("DEBUG ENABLED");
+  }
 
   delay(2000);
   lcd.clear();
@@ -367,17 +388,35 @@ void loop() {
     lcd.print("A");
 
     lcd.setCursor(0, 3);
-    lcd.print("OUT: ON");
+    
+    if (output == 0) {
+      lcd.print("OUT: OFF");
+      analogWrite(fan1en, 0);
+      analogWrite(fan2en, 0);
+    }else {
+      lcd.print("OUT: ON");
+      analogWrite(fan1en, 255);
+      analogWrite(fan2en, 255);
+    }
 
 
 
     lcd.setCursor(11, 3);
-    
-    if (abs(napeti - displvolt) > CCCVmodedifftreshold) {
-    lcd.print("MODE: CC");
+    if (output == 0) {
+      lcd.print("MODE:N/A");
     }else {
-    lcd.print("MODE: CV");
+      if (abs(napeti - displvolt) > CCCVmodedifftreshold) {
+      lcd.print("MODE: CC");
+      }else {
+        lcd.print("MODE: CV");
+      }
+
+    
     }
+
+    
+    
+    
 
   }
     
@@ -416,6 +455,13 @@ void loop() {
 
 
 void zadani_napeti() {
+  disable_output();
+  power_DOWN_module1();
+  power_DOWN_module2();
+  analogWrite(fan1en, 0);
+  if (prvnispusteni == 0) {
+    analogWrite(fan2en, 255);
+  }
     
   lcd.clear();
   int select = 1;
@@ -564,7 +610,11 @@ void zadani_napeti() {
         break;
 
       }
-      lcd.write(1);
+      
+  
+  
+      lcd.print("|");
+      //lcd.print(char(2));
       lcd.print("                   ");
     
 
@@ -590,14 +640,24 @@ void zadani_napeti() {
     
 
     if (select >= 6) {
+      power_DOWN_module1();
+      power_DOWN_module2();
       lcd.clear();
       lcd.setCursor(5, 1);
       lcd.print("Loading...");
       lcd.setCursor(5, 2);
       lcd.print("Please wait");
+
+      EEPROM.put(6, napeti);
+
       DESIRED_U = napeti;
+      DESIRED_I = proud / 2;
       vcalc();
+      if (prvnispusteni) {
+        icalc();
+      }
       DCPsetup();
+      prvnispusteni = 0;
       goto exit_point;  // Přejdeme na label exit_point a ukončíme funkci
     }
     
@@ -609,6 +669,14 @@ void zadani_napeti() {
 }
 
 void zadani_proudu() {
+  disable_output();
+  power_DOWN_module1();
+  power_DOWN_module2();
+  analogWrite(fan1en, 0);
+  if (prvnispusteni == 0) {
+    analogWrite(fan2en, 255);
+  }
+  
     
   lcd.clear();
   int select = 1;
@@ -757,7 +825,11 @@ void zadani_proudu() {
         break;
 
       }
-      lcd.write(1);
+       
+  
+  
+      lcd.print("|");
+      //lcd.print(char(2));
       lcd.print("                   ");
     
 
@@ -783,14 +855,26 @@ void zadani_proudu() {
     
 
     if (select >= 6) {
+      power_DOWN_module1();
+      power_DOWN_module2();
       lcd.clear();
       lcd.setCursor(5, 1);
       lcd.print("Loading...");
       lcd.setCursor(5, 2);
       lcd.print("Please wait");
+
+      EEPROM.put(1, proud);
+
+      DESIRED_U = napeti;
       DESIRED_I = proud / 2;
+      
       icalc();
+
+      if (prvnispusteni) {
+        vcalc();
+      }
       DCPsetup();
+      prvnispusteni = 0;
       goto exit_point2;  // Přejdeme na label exit_point a ukončíme funkci
     }
     
@@ -1037,7 +1121,15 @@ int DCPsetup(){
       Serial.println();
     }
     DCPwiperset();
+    delay(150);
     DCPfeedback();
+    delay(150);
+    power_UP_module1();
+    power_UP_module2();
+    delay(300);
+    serila_conn();
+    delay(100);
+    enable_output();
 
 }
 
@@ -1140,34 +1232,58 @@ int DCPwiperset(){
 
 void DCPfeedback(){
     if(Digipot1.WiperGetPosition() != set1) {
+        Serial.println();
+        Serial.print("ERR at 1 == ");
+        Serial.print(Digipot1.WiperGetPosition());
         DCPerror();
     }
 
     if(Digipot2.WiperGetPosition() != set2) {
+        Serial.println();
+        Serial.print("ERR at 2 == ");
+        Serial.print(Digipot2.WiperGetPosition());
         DCPerror();
     }
 
     if(Digipot3.WiperGetPosition() != set3) {
+        Serial.println();
+        Serial.print("ERR at 3 == ");
+        Serial.print(Digipot3.WiperGetPosition());
         DCPerror();
     }
 
     if(Digipot4.WiperGetPosition() != set4) {
+        Serial.println();
+        Serial.print("ERR at 4 == ");
+        Serial.print(Digipot4.WiperGetPosition());
         DCPerror();
     }
 
     if(Digipot5.WiperGetPosition() != set5) {
+        Serial.println();
+        Serial.print("ERR at 5 == ");
+        Serial.print(Digipot5.WiperGetPosition());
         DCPerror();
     }
 
     if(Digipot6.WiperGetPosition() != set6) {
+        Serial.println();
+        Serial.print("ERR at 6 == ");
+        Serial.print(Digipot6.WiperGetPosition());
         DCPerror();
     }
 
     if(Digipot7.WiperGetPosition() != set7) {
+        Serial.println();
+        Serial.print("ERR at 7 == ");
+        Serial.print(Digipot7.WiperGetPosition());
         DCPerror();
     }
 
     if(Digipot8.WiperGetPosition() != set8) {
+        Serial.println();
+        Serial.print("ERR at 8 == ");
+        Serial.print(Digipot8.WiperGetPosition());
         DCPerror();
     }
 
@@ -1225,6 +1341,59 @@ void DCPerror(){
     delay(1000);
     }
 }
+
+
+void power_UP_module1(){
+
+  digitalWrite(PIN_relay6, LOW); //napajni modulu 1
+
+}
+
+void power_UP_module2(){
+  
+  digitalWrite(PIN_relay5, LOW); //napajni modulu 2
+  
+}
+
+
+void power_DOWN_module1(){
+
+  digitalWrite(PIN_relay6, HIGH); //napajni modulu 1
+
+}
+
+void power_DOWN_module2(){
+
+  digitalWrite(PIN_relay5, HIGH); //napajni modulu 2
+  
+}
+
+void disable_output(){
+
+  digitalWrite(PIN_relay4, HIGH); //ovladani vystupu zdroje
+  digitalWrite(PIN_relay3, HIGH);
+  digitalWrite(PIN_relay2, HIGH);
+  digitalWrite(PIN_relay1, HIGH);
+  output = 0;
+  
+}
+
+void enable_output(){
+
+  digitalWrite(PIN_relay4, LOW); //ovladani vystupu zdroje
+  output = 1;
+  
+}
+
+//PIN_relay2 + PIN_relay3 = paraler
+//PIN_relay1 = ser  
+
+void serila_conn(){
+  digitalWrite(PIN_relay2, LOW);
+  digitalWrite(PIN_relay3, LOW);
+}
+
+
 
 
 
