@@ -170,7 +170,16 @@ float DESIRED_I = 1.00;
 
 
 
+/////////////////////////////////////////// vypocty korekce
 
+
+const int tableSize = 32;
+float requestedVoltages[tableSize] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32};
+float realVoltages[tableSize] = {1.46, 2.39, 3.32, 4.2, 5.1, 6.1, 7, 8, 8.8, 9.8, 10.7, 11.6, 12.6, 13.5, 14.4, 15.3, 16.3, 17.2, 18.1, 19.09, 20, 20.9, 21.8, 22.7, 23.7, 24.6, 25.5, 26.4, 27.4, 28.3, 29.2, 30.1};
+
+
+
+/////////////////////////////////////////// SETUP ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void setup() {
   delay(10);
@@ -253,6 +262,7 @@ void setup() {
   // zahájení komunikace po sériové lince
   Serial.begin(9600);
   if (DEBUG) {
+    Serial.println();
     Serial.println("DEBUG ENABLED");
   }
 
@@ -315,22 +325,39 @@ void loop() {
     
     
     //nacteni ads hodnot
-    int16_t valadc1 = ADS.readADC_Differential_0_1();
-    int16_t valadc0 = ADS.readADC_Differential_0_2();
+    int16_t valadc1 = ADS.readADC(1); // proud
+    //valadc1 = valadc1 - 116;
+    int16_t valadc0 = ADS.readADC_Differential_0_2(); // napeti
+    //Serial.println(valadc1);
+    //Serial.println(valadc0);
+    
     float displvolt = (valadc0 * f ) * 13.1 ;//* 13.269933; // vypocet vysupniho napeti
-    float displcur = (valadc1 * f) * 4.6376811594 ; // vypocet vysupniho proudu //0.228
+    float displcur = (valadc1 * f) * 7.1428571429 ;  // because 1 / 0.19 ≈ 5.56 7,1428571429
+    //float displcur = (valadc1 * f) * 4.2016806723;
+    //float displcur = (valadc1 * f) * 4.6376811594 ; // vypocet vysupniho proudu //0.228
+    //Serial.println(displcur);
+    //Serial.println(displvolt);
+    //Serial.println();
+    
     if (displcur < 0) {
-    displcur = 0;
+      displcur = 0;
     }
 
     if (displvolt < 0) {
-    displvolt = 0;
+      displvolt = 0;
     }
+
+    /*if (output == 0) {
+      displcur = 0;
+      displvolt = 0;
+    }*/
+
 
     float displpwr = displvolt * displcur;// P=U*I
     if (displpwr < 0) {
     displpwr = 0;
     }
+
 
     lcd.setCursor(0, 0);
     lcd.print("U:");
@@ -414,7 +441,67 @@ void loop() {
     
     }
 
+    Digipot1.WiperSetPosition(set1);
     
+    Digipot2.WiperSetPosition(set2);
+    
+    Digipot3.WiperSetPosition(set3);
+    
+    Digipot4.WiperSetPosition(set4);
+    
+    Digipot5.WiperSetPosition(set5);
+    
+    Digipot6.WiperSetPosition(set6);
+    
+    Digipot7.WiperSetPosition(set7);
+    
+    Digipot8.WiperSetPosition(set8);
+
+     if(DEBUG) {
+        Serial.println();
+        Serial.print("DCP1 walue =");
+        Serial.print(Digipot1.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP2 walue =");
+        Serial.print(Digipot2.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP3 walue =");
+        Serial.print(Digipot3.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP4 walue =");
+        Serial.print(Digipot4.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP5 walue =");
+        Serial.print(Digipot5.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP6 walue =");
+        Serial.print(Digipot6.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP7 walue =");
+        Serial.print(Digipot7.WiperGetPosition());
+        
+
+        Serial.println();
+        Serial.print("DCP8 walue =");
+        Serial.print(Digipot8.WiperGetPosition());
+        Serial.println();
+        Serial.println();
+        Serial.println();
+        
+        
+    }
     
     
 
@@ -650,7 +737,7 @@ void zadani_napeti() {
 
       EEPROM.put(6, napeti);
 
-      DESIRED_U = napeti;
+      DESIRED_U = applyVoltageCorrection(napeti);
       DESIRED_I = proud / 2;
       vcalc();
       if (prvnispusteni) {
@@ -865,7 +952,7 @@ void zadani_proudu() {
 
       EEPROM.put(1, proud);
 
-      DESIRED_U = napeti;
+      DESIRED_U = applyVoltageCorrection(napeti);
       DESIRED_I = proud / 2;
       
       icalc();
@@ -1121,7 +1208,7 @@ int DCPsetup(){
       Serial.println();
     }
     DCPwiperset();
-    delay(150);
+    delay(600);
     DCPfeedback();
     delay(150);
     power_UP_module1();
@@ -1218,76 +1305,30 @@ int setvaliditycheck(){
 }
 
 int DCPwiperset(){
+    delay(100);
     Digipot1.WiperSetPosition(set1);
+    delay(100);
     Digipot2.WiperSetPosition(set2);
+    delay(100);
     Digipot3.WiperSetPosition(set3);
+    delay(100);
     Digipot4.WiperSetPosition(set4);
+    delay(100);
     Digipot5.WiperSetPosition(set5);
+    delay(100);
     Digipot6.WiperSetPosition(set6);
+    delay(100);
     Digipot7.WiperSetPosition(set7);
+    delay(100);
     Digipot8.WiperSetPosition(set8);
+    delay(100);
 
     
 }
 
+
 void DCPfeedback(){
-    if(Digipot1.WiperGetPosition() != set1) {
-        Serial.println();
-        Serial.print("ERR at 1 == ");
-        Serial.print(Digipot1.WiperGetPosition());
-        DCPerror();
-    }
-
-    if(Digipot2.WiperGetPosition() != set2) {
-        Serial.println();
-        Serial.print("ERR at 2 == ");
-        Serial.print(Digipot2.WiperGetPosition());
-        DCPerror();
-    }
-
-    if(Digipot3.WiperGetPosition() != set3) {
-        Serial.println();
-        Serial.print("ERR at 3 == ");
-        Serial.print(Digipot3.WiperGetPosition());
-        DCPerror();
-    }
-
-    if(Digipot4.WiperGetPosition() != set4) {
-        Serial.println();
-        Serial.print("ERR at 4 == ");
-        Serial.print(Digipot4.WiperGetPosition());
-        DCPerror();
-    }
-
-    if(Digipot5.WiperGetPosition() != set5) {
-        Serial.println();
-        Serial.print("ERR at 5 == ");
-        Serial.print(Digipot5.WiperGetPosition());
-        DCPerror();
-    }
-
-    if(Digipot6.WiperGetPosition() != set6) {
-        Serial.println();
-        Serial.print("ERR at 6 == ");
-        Serial.print(Digipot6.WiperGetPosition());
-        DCPerror();
-    }
-
-    if(Digipot7.WiperGetPosition() != set7) {
-        Serial.println();
-        Serial.print("ERR at 7 == ");
-        Serial.print(Digipot7.WiperGetPosition());
-        DCPerror();
-    }
-
-    if(Digipot8.WiperGetPosition() != set8) {
-        Serial.println();
-        Serial.print("ERR at 8 == ");
-        Serial.print(Digipot8.WiperGetPosition());
-        DCPerror();
-    }
-
-    if(DEBUG) {
+      if(DEBUG) {
         Serial.println();
         Serial.print("DCP1 walue =");
         Serial.print(Digipot1.WiperGetPosition());
@@ -1327,7 +1368,122 @@ void DCPfeedback(){
         Serial.print("DCP8 walue =");
         Serial.print(Digipot8.WiperGetPosition());
         
+        
     }
+    Digipot1.WiperSetPosition(set1);
+    if(Digipot1.WiperGetPosition() != set1) {
+        Serial.println();
+        Serial.print("ERR at 1 == ");
+        Serial.print(Digipot1.WiperGetPosition());
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("ERR: 1DCP NOT FOUND");
+        while(1) {
+          delay(1000);
+        }
+        DCPerror();
+    }
+
+
+    Digipot2.WiperSetPosition(set2);
+    if(Digipot2.WiperGetPosition() != set2) {
+        Serial.println();
+        Serial.print("ERR at 2 == ");
+        Serial.print(Digipot2.WiperGetPosition());
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("ERR: 2DCP NOT FOUND");
+        while(1) {
+          delay(1000);
+        }
+        DCPerror();
+    }
+
+    Digipot3.WiperSetPosition(set3);
+    if(Digipot3.WiperGetPosition() != set3) {
+        Serial.println();
+        Serial.print("ERR at 3 == ");
+        Serial.print(Digipot3.WiperGetPosition());
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("ERR: 3DCP NOT FOUND");
+        while(1) {
+          delay(1000);
+        }
+        DCPerror();
+    }
+    Digipot4.WiperSetPosition(set4);
+
+    if(Digipot4.WiperGetPosition() != set4) {
+        Serial.println();
+        Serial.print("ERR at 4 == ");
+        Serial.print(Digipot4.WiperGetPosition());
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("ERR: 4DCP NOT FOUND");
+        while(1) {
+          delay(1000);
+        }
+        DCPerror();
+    }
+    Digipot5.WiperSetPosition(set5);
+
+    if(Digipot5.WiperGetPosition() != set5) {
+        Serial.println();
+        Serial.print("ERR at 5 == ");
+        Serial.print(Digipot5.WiperGetPosition());
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("ERR: 5DCP NOT FOUND");
+        while(1) {
+          delay(1000);
+        }
+        DCPerror();
+    }
+    Digipot6.WiperSetPosition(set6);
+
+    if(Digipot6.WiperGetPosition() != set6) {
+        Serial.println();
+        Serial.print("ERR at 6 == ");
+        Serial.print(Digipot6.WiperGetPosition());
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("ERR: 6DCP NOT FOUND");
+        while(1) {
+          delay(1000);
+        }
+        DCPerror();
+    }
+    Digipot7.WiperSetPosition(set7);
+
+    if(Digipot7.WiperGetPosition() != set7) {
+        Serial.println();
+        Serial.print("ERR at 7 == ");
+        Serial.print(Digipot7.WiperGetPosition());
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("ERR: 7DCP NOT FOUND");
+        while(1) {
+          delay(1000);
+        }
+        DCPerror();
+    }
+
+    if(Digipot8.WiperGetPosition() != set8) {
+        Serial.println();
+        Serial.print("ERR at 8 == ");
+        Serial.print(Digipot8.WiperGetPosition());
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("ERR: 8DCP NOT FOUND");
+        while(1) {
+          delay(1000);
+        }
+        DCPerror();
+    }
+    Digipot8.WiperSetPosition(set8);
+
+
     
 
 }
@@ -1341,7 +1497,6 @@ void DCPerror(){
     delay(1000);
     }
 }
-
 
 void power_UP_module1(){
 
@@ -1398,7 +1553,25 @@ void serila_conn(){
 
 
 
+float applyVoltageCorrection(float voltage) {
+    float correctionFactor = getCorrectionFactor(voltage);
+    return voltage * correctionFactor;
+}
 
+float getCorrectionFactor(float voltage) {
+    if (voltage <= requestedVoltages[0]) return requestedVoltages[0] / realVoltages[0];
+    if (voltage >= requestedVoltages[tableSize - 1]) return requestedVoltages[tableSize - 1] / realVoltages[tableSize - 1];
+    
+    for (int i = 0; i < tableSize - 1; i++) {
+        if (voltage >= requestedVoltages[i] && voltage <= requestedVoltages[i + 1]) {
+            float factor1 = requestedVoltages[i] / realVoltages[i];
+            float factor2 = requestedVoltages[i + 1] / realVoltages[i + 1];
+            float t = (voltage - requestedVoltages[i]) / (requestedVoltages[i + 1] - requestedVoltages[i]);
+            return factor1 + t * (factor2 - factor1);
+        }
+    }
+    return 1.0;
+}
 
 
 
