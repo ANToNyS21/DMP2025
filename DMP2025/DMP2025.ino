@@ -178,8 +178,11 @@ float requestedVoltages[tableSize] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
 float realVoltages[tableSize] = {1.46, 2.39, 3.32, 4.2, 5.1, 6.1, 7, 8, 8.8, 9.8, 10.7, 11.6, 12.6, 13.5, 14.4, 15.3, 16.3, 17.2, 18.1, 19.09, 20, 20.9, 21.8, 22.7, 23.7, 24.6, 25.5, 26.4, 27.4, 28.3, 29.2, 30.1};
 
 const int AtableSize = 40; // korekce mereneho proudu
-float zdroj[AtableSize] = {0.45, 0.588, 0.8, 0.98, 1.18, 1.37, 1.57, 1.76, 1.94, 2.14, 2.34, 2.54, 2.73, 2.92, 3.11, 3.31, 3.49, 3.68, 3.86, 4.04, 4.23, 4.43, 4.63, 4.81, 4.99, 5.16, 5.36, 5.56, 5.72, 5.91, 6.09, 6.29, 6.49, 6.69, 6.89, 7.09, 7.32, 7.55, 7.76, 7.967};
-float ampermetr[AtableSize] = {0.18, 0.5, 0.9, 1.18, 1.48, 1.77, 2.06, 2.36, 2.63, 2.93, 3.24, 3.53, 3.83, 4.13, 4.4, 4.71, 5.01, 5.31, 5.59, 5.86, 6.15, 6.47, 6.79, 7.1, 7.36, 7.63, 7.95, 8.32, 8.58, 8.89, 9.21, 9.55, 9.95, 10.29, 10.65, 10.95, 11.39, 11.75, 12.21, 12.57};
+float zdroj[AtableSize] = {0.2, 0.588, 0.8, 0.98, 1.18, 1.37, 1.57, 1.76, 1.94, 2.14, 2.34, 2.54, 2.73, 2.92, 3.11, 3.31, 3.49, 3.68, 3.86, 4.04, 4.23, 4.43, 4.63, 4.81, 4.99, 5.16, 5.36, 5.56, 5.72, 5.91, 6.09, 6.29, 6.49, 6.69, 6.89, 7.09, 7.32, 7.55, 7.76, 7.967};
+float ampermetr[AtableSize] = {0.1, 0.5, 0.9, 1.18, 1.48, 1.77, 2.06, 2.36, 2.63, 2.93, 3.24, 3.53, 3.83, 4.13, 4.4, 4.71, 5.01, 5.31, 5.59, 5.86, 6.15, 6.47, 6.79, 7.1, 7.36, 7.63, 7.95, 8.32, 8.58, 8.89, 9.21, 9.55, 9.95, 10.29, 10.65, 10.95, 11.39, 11.75, 12.21, 12.57};
+
+//float zdroj[AtableSize] = {0.45, 0.588, 0.8, 0.98, 1.18, 1.37, 1.57, 1.76, 1.94, 2.14, 2.34, 2.54, 2.73, 2.92, 3.11, 3.31, 3.49, 3.68, 3.86, 4.04, 4.23, 4.43, 4.63, 4.81, 4.99, 5.16, 5.36, 5.56, 5.72, 5.91, 6.09, 6.29, 6.49, 6.69, 6.89, 7.09, 7.32, 7.55, 7.76, 7.967};
+//float ampermetr[AtableSize] = {0.18, 0.5, 0.9, 1.18, 1.48, 1.77, 2.06, 2.36, 2.63, 2.93, 3.24, 3.53, 3.83, 4.13, 4.4, 4.71, 5.01, 5.31, 5.59, 5.86, 6.15, 6.47, 6.79, 7.1, 7.36, 7.63, 7.95, 8.32, 8.58, 8.89, 9.21, 9.55, 9.95, 10.29, 10.65, 10.95, 11.39, 11.75, 12.21, 12.57};
 
 
 const int A_Out_tableSize = 41; // korekce vystupniho proudu
@@ -350,10 +353,15 @@ void loop() {
     if (displcur < 0) {
       displcur = 0;
     }
-    Serial.println(displcur);
+    if (DEBUG) {
+      Serial.println(displcur);
+    }
     displcur = apply_Measured_Current_Correction(displcur);
-    Serial.println(displcur);
-    Serial.println();
+    if (DEBUG) {
+      Serial.println(displcur);
+      Serial.println();
+    }
+    
 
     if (displcur < 0) {
       displcur = 0;
@@ -363,10 +371,10 @@ void loop() {
       displvolt = 0;
     }
 
-    /*if (output == 0) {
+    if (output == 0) {
       displcur = 0;
       displvolt = 0;
-    }*/
+    }
 
 
     float displpwr = displvolt * displcur;// P=U*I
@@ -472,7 +480,7 @@ void loop() {
     Digipot7.WiperSetPosition(set7);
     
     Digipot8.WiperSetPosition(set8);
-/*
+
      if(DEBUG) {
         Serial.println();
         Serial.print("DCP1 walue =");
@@ -518,7 +526,7 @@ void loop() {
         
         
     }
-    */
+    
     
 
   }
@@ -754,8 +762,14 @@ void zadani_napeti() {
       EEPROM.put(6, napeti);
 
       DESIRED_U = applyVoltageCorrection(napeti);
+      DESIRED_I = proud / 2;
 
-      DESIRED_I = getCorrectedSetValue(proud / 2);
+      //DESIRED_I = getCorrectedSetValue(proud / 2);
+      
+      
+      /*if (proud > 1.2) {
+        DESIRED_I = DESIRED_I + 0.2;
+      }*/
       
       vcalc();
       if (prvnispusteni) {
@@ -971,7 +985,12 @@ void zadani_proudu() {
       EEPROM.put(1, proud);
 
       DESIRED_U = applyVoltageCorrection(napeti);
-      DESIRED_I = getCorrectedSetValue(proud / 2);
+      //DESIRED_I = getCorrectedSetValue(proud / 2);
+      DESIRED_I = proud / 2;
+
+      /*if (proud > 1.2) {
+        DESIRED_I = DESIRED_I + 0.2;
+      }*/
       
       icalc();
 
